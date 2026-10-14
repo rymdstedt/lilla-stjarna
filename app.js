@@ -5,6 +5,8 @@
   const storyText = document.querySelector('#story-text');
   const voiceSelect = document.querySelector('#voice-select');
   const voiceNote = document.querySelector('#voice-note');
+  const speedControl = document.querySelector('#speed-control');
+  const speedValue = document.querySelector('#speed-value');
   const readButton = document.querySelector('#read-button');
   const pauseButton = document.querySelector('#pause-button');
   const stopButton = document.querySelector('#stop-button');
@@ -17,7 +19,8 @@
   let voices = [];
   let selectedFriend = 'en nyfiken liten räv';
   let selectedPlace = 'i en hemlig skog';
-  let activeUtterance = null;
+  let playback = null;
+  let playbackId = 0;
 
   function wireChoices(groupId, setter) {
     document.querySelectorAll(`#${groupId} .choice-pill`).forEach(button => {
@@ -45,14 +48,10 @@
     ]
   };
 
-  function cleanName(value) {
-    const name = (value || '').trim().replace(/[<>]/g, '');
-    return name.slice(0, 24) || 'Luna';
+  function cleanText(value, maxLength, fallback = '') {
+    return (value || '').replace(/[<>]/g, '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength) || fallback;
   }
-  function titleFor(name, friend) {
-    const buddy = friend.includes('räv') ? 'räven' : friend.includes('björn') ? 'björnen' : friend.includes('kanin') ? 'kaninen' : 'draken';
-    return `${name} och ${buddy} hittar en stjärna`;
-  }
+  function titleFor(name, friend) { return `${name} på äventyr med ${friend}`; }
   function buildStory(name, friend, place, length) {
     const options = stories[length] || stories.mellan;
     const make = options[Math.floor(Math.random() * options.length)];
@@ -72,7 +71,11 @@
   form.addEventListener('submit', event => {
     event.preventDefault();
     stopReading();
-    showStory(buildStory(cleanName(document.querySelector('#child-name').value), selectedFriend, selectedPlace, document.querySelector('#length').value));
+    const customFriend = cleanText(document.querySelector('#custom-friend').value, 50);
+    const customPlace = cleanText(document.querySelector('#custom-place').value, 60);
+    const friend = customFriend ? /^(en|ett)\s/i.test(customFriend) ? customFriend : `en ${customFriend}` : selectedFriend;
+    const place = customPlace || selectedPlace;
+    showStory(buildStory(cleanText(document.querySelector('#child-name').value, 24, 'Luna'), friend, place, document.querySelector('#length').value));
   });
   document.querySelector('#new-story').addEventListener('click', () => {
     stopReading();
@@ -83,31 +86,32 @@
   function loadVoices() {
     if (!speech) {
       voiceSelect.innerHTML = '<option value="">Tal saknas i webbläsaren</option>';
-      voiceNote.textContent = 'Den här webbläsaren har inte uppläsning aktiverad. Prova Safari, Chrome eller Edge på en enhet med svenska röster.';
+      voiceNote.textContent = 'Uppläsning saknas i den här webbläsaren. Prova en annan webbläsare med svenska röster installerade.';
       readButton.disabled = true;
       return;
     }
+    const previousVoice = voiceSelect.value;
     voices = speech.getVoices();
-    const swedish = voices.filter(voice => /^sv([-_]|$)/i.test(voice.lang));
-    const choices = swedish.length ? swedish : voices;
+    const swedish = voices.filter(voice => /^sv([-_]|$)/i.test(voice.lang)).sort((a, b) => {
+      const score = voice => (/neural|natural|online|premium|enhanced/i.test(voice.name) ? 0 : voice.localService ? 2 : 1);
+      return score(a) - score(b) || a.name.localeCompare(b.name, 'sv');
+    });
     voiceSelect.replaceChildren();
-    if (!choices.length) {
-      voiceSelect.add(new Option('Webbläsarens standardröst', ''));
-      voiceNote.textContent = 'Rösterna laddas från din enhet. Om ingen svensk röst finns installerad kan uppläsningen låta annorlunda.';
+    if (!swedish.length) {
+      voiceSelect.add(new Option('Ingen svensk röst hittades', ''));
+      voiceNote.textContent = 'Installera en svensk röst i enhetens talinställningar och ladda om sidan. Rösterna hämtas från webbläsaren/enheten och ljudkvaliteten skiljer sig mellan dem.';
+      readButton.disabled = true;
       return;
     }
-    choices.forEach((voice, index) => {
-      const option = new Option(`${voice.name}${voice.localService ? '' : ' · online'}`, String(voices.indexOf(voice)));
-      voiceSelect.add(option);
-      if (voice.default && index === 0) voiceSelect.value = String(voices.indexOf(voice));
+    readButton.disabled = false;
+    swedish.forEach(voice => {
+      const label = `${voice.name}${voice.localService ? ' · enhet' : ' · online'}`;
+      voiceSelect.add(new Option(label, String(voices.indexOf(voice))));
     });
-    if (swedish.length) {
-      const preferred = swedish.find(voice => /natural|premium|enhanced|neural|siri/i.test(voice.name)) || swedish.find(voice => voice.default) || swedish[0];
-      voiceSelect.value = String(voices.indexOf(preferred));
-      voiceNote.textContent = 'Svenska röster från den här enheten. Rösternas klang och kvalitet varierar mellan webbläsare och enheter.';
-    } else {
-      voiceNote.textContent = 'Ingen svensk röst hittades på enheten. Installera en svensk uppläsningsröst i enhetens inställningar för bäst resultat.';
-    }
+    const preferred = swedish.find(voice => /neural|natural|premium|enhanced/i.test(voice.name)) || swedish.find(voice => !voice.localService) || swedish.find(voice => voice.default) || swedish[0];
+    const preferredIndex = String(voices.indexOf(preferred));
+    voiceSelect.value = swedish.some(voice => String(voices.indexOf(voice)) === previousVoice) ? previousVoice : preferredIndex;
+    voiceNote.textContent = `Visar ${swedish.length} svenska röster i webbläsaren. Prova röster märkta ”online” först. På Mac och Windows kan Edge erbjuda naturligare onlineröster om de visas i listan.`;
   }
   if (speech) {
     loadVoices();
@@ -120,30 +124,58 @@
     readButton.querySelector('span').textContent = active ? 'Spelar…' : 'Lyssna igen';
   }
   function stopReading() {
+    playbackId += 1;
     if (speech) speech.cancel();
-    activeUtterance = null;
+    playback = null;
     setPlayback(false);
+    pauseButton.textContent = 'Pausa';
+  }
+  function speakNext(id) {
+    if (!playback || playbackId !== id || playback.paused) return;
+    if (playback.index >= playback.sentences.length) {
+      playback = null;
+      setPlayback(false);
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(playback.sentences[playback.index]);
+    utterance.lang = 'sv-SE';
+    const voice = voices[Number(voiceSelect.value)];
+    if (voice) { utterance.voice = voice; utterance.lang = voice.lang; }
+    utterance.rate = playback.rate;
+    utterance.pitch = 1;
+    utterance.onstart = () => setPlayback(true);
+    utterance.onend = () => {
+      if (!playback || playbackId !== id) return;
+      playback.index += 1;
+      speakNext(id);
+    };
+    utterance.onerror = event => {
+      if (!playback || playbackId !== id || event.error === 'interrupted' || event.error === 'canceled') return;
+      playback = null;
+      setPlayback(false);
+      voiceNote.textContent = 'Uppläsningen kunde inte starta. Prova en annan svensk röst.';
+    };
+    speech.speak(utterance);
   }
   readButton.addEventListener('click', () => {
     if (!currentStory || !speech) return;
     stopReading();
-    activeUtterance = new SpeechSynthesisUtterance(currentStory.text.replace(/\n/g, ' '));
-    activeUtterance.lang = 'sv-SE';
-    const voice = voices[Number(voiceSelect.value)];
-    if (voice) { activeUtterance.voice = voice; activeUtterance.lang = voice.lang; }
-    activeUtterance.rate = Number(document.querySelector('#speed-select').value);
-    activeUtterance.pitch = 0.94;
-    activeUtterance.onstart = () => setPlayback(true);
-    activeUtterance.onend = () => setPlayback(false);
-    activeUtterance.onerror = () => { setPlayback(false); voiceNote.textContent = 'Uppläsningen kunde inte starta. Prova att välja en annan röst.'; };
-    speech.speak(activeUtterance);
+    const sentences = currentStory.text.replace(/\n+/g, ' ').match(/[^.!?]+[.!?]+|[^.!?]+$/gu) || [currentStory.text];
+    playback = { sentences: sentences.map(sentence => sentence.trim()).filter(Boolean), index: 0, rate: Number(speedControl.value), paused: false };
+    playbackId += 1;
+    speakNext(playbackId);
   });
   pauseButton.addEventListener('click', () => {
     if (!speech) return;
-    if (speech.paused) { speech.resume(); pauseButton.textContent = 'Pausa'; }
-    else { speech.pause(); pauseButton.textContent = 'Fortsätt'; }
+    if (speech.paused) { speech.resume(); if (playback) playback.paused = false; pauseButton.textContent = 'Pausa'; }
+    else { speech.pause(); if (playback) playback.paused = true; pauseButton.textContent = 'Fortsätt'; }
   });
   stopButton.addEventListener('click', stopReading);
+  speedControl.addEventListener('input', () => {
+    speedValue.value = `${Number(speedControl.value).toFixed(2).replace('.', ',')}×`;
+    speedValue.textContent = speedValue.value;
+    if (playback) playback.rate = Number(speedControl.value);
+  });
 
   function getSaved() {
     try { return JSON.parse(localStorage.getItem('lilla-stjarna-stories') || '[]'); }
