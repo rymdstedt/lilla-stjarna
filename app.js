@@ -10,17 +10,26 @@
   const readButton = document.querySelector('#read-button');
   const pauseButton = document.querySelector('#pause-button');
   const stopButton = document.querySelector('#stop-button');
+  const aiAudio = document.querySelector('#ai-audio');
+  const apiKeyForm = document.querySelector('#api-key-form');
+  const apiKeyInput = document.querySelector('#api-key');
+  const rememberApiKey = document.querySelector('#remember-api-key');
+  const connectButton = document.querySelector('#connect-ai');
+  const voiceSetup = document.querySelector('#voice-setup');
   const saveButton = document.querySelector('#save-button');
   const saveStatus = document.querySelector('#save-status');
   const savedArea = document.querySelector('#saved-area');
   const savedList = document.querySelector('#saved-list');
-  const speech = window.speechSynthesis;
   let currentStory = null;
   let voices = [];
+  let aiApiKey = '';
   let selectedFriend = 'en nyfiken liten räv';
   let selectedPlace = 'i en hemlig skog';
-  let playback = null;
   let playbackId = 0;
+  let generationBusy = false;
+  let requestController = null;
+  let generatedAudioUrl = '';
+  let generatedAudioKey = '';
 
   function wireChoices(groupId, setter) {
     document.querySelectorAll(`#${groupId} .choice-pill`).forEach(button => {
@@ -58,6 +67,7 @@
     return { title: titleFor(name, friend), text: make(name, friend, place), name, friend, place, length, created: Date.now() };
   }
   function showStory(story) {
+    clearAudioCache();
     currentStory = story;
     storyTitle.textContent = story.title;
     storyText.replaceChildren(...story.text.split('\n\n').map(paragraph => {
@@ -83,98 +93,289 @@
     document.querySelector('#skapa').scrollIntoView({ behavior: 'smooth' });
   });
 
-  function loadVoices() {
-    if (!speech) {
-      voiceSelect.innerHTML = '<option value="">Tal saknas i webbläsaren</option>';
-      voiceNote.textContent = 'Uppläsning saknas i den här webbläsaren. Prova en annan webbläsare med svenska röster installerade.';
-      readButton.disabled = true;
-      return;
-    }
-    const previousVoice = voiceSelect.value;
-    voices = speech.getVoices();
-    const swedish = voices.filter(voice => /^sv([-_]|$)/i.test(voice.lang)).sort((a, b) => {
-      const score = voice => (/neural|natural|online|premium|enhanced/i.test(voice.name) ? 0 : voice.localService ? 2 : 1);
-      return score(a) - score(b) || a.name.localeCompare(b.name, 'sv');
+  const fallbackVoices = [
+    { voice_id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', description: 'Varm sagoberättare' },
+    { voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', description: 'Mjuk och trygg' },
+    { voice_id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', description: 'Ljus och lekfull' },
+    { voice_id: 'SAz9YHcvj6GT2YYXdXww', name: 'River', description: 'Lugn och neutral' },
+    { voice_id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily', description: 'Mjuk och varm' },
+    { voice_id: 'nPczCjzI2devNBz1zQrb', name: 'Brian', description: 'Djup och rogivande' },
+    { voice_id: 'CwhRBWXzGAHq8TQ4Fs17', name: 'Roger', description: 'Avslappnad och varm' }
+  ];
+  const recommendedVoices = new Map(fallbackVoices.map((voice, index) => [voice.voice_id, index]));
+  const specialVoiceNames = new Map(fallbackVoices.map(voice => [voice.voice_id, `${voice.name} — ${voice.description}`]));
+  const savedKeyName = 'lilla-stjarna-elevenlabs-key';
+
+  function setVoiceStatus(message, state = '') {
+    voiceNote.textContent = message;
+    if (state) voiceNote.dataset.state = state;
+    else delete voiceNote.dataset.state;
+  }
+  function voiceLabel(voice) {
+    if (specialVoiceNames.has(voice.voice_id)) return specialVoiceNames.get(voice.voice_id);
+    const rawName = voice.name || 'AI-röst';
+    return rawName.replace(/\s+-\s+/g, ' — ');
+  }
+  function updateVoiceOptions(nextVoices) {
+    const previous = voiceSelect.value;
+    voices = nextVoices.filter(voice => voice && voice.voice_id && voice.name).sort((a, b) => {
+      const aRank = recommendedVoices.has(a.voice_id) ? recommendedVoices.get(a.voice_id) : 99;
+      const bRank = recommendedVoices.has(b.voice_id) ? recommendedVoices.get(b.voice_id) : 99;
+      return aRank - bRank || voiceLabel(a).localeCompare(voiceLabel(b), 'sv');
     });
     voiceSelect.replaceChildren();
-    if (!swedish.length) {
-      voiceSelect.add(new Option('Ingen svensk röst hittades', ''));
-      voiceNote.textContent = 'Installera en svensk röst i enhetens talinställningar och ladda om sidan. Rösterna hämtas från webbläsaren/enheten och ljudkvaliteten skiljer sig mellan dem.';
-      readButton.disabled = true;
+    voices.forEach(voice => voiceSelect.add(new Option(voiceLabel(voice), voice.voice_id)));
+    const selected = voices.some(voice => voice.voice_id === previous) ? previous :
+      voices.some(voice => voice.voice_id === 'JBFqnCBsd6RMkjVDRZzb') ? 'JBFqnCBsd6RMkjVDRZzb' : voices[0]?.voice_id;
+    if (selected) voiceSelect.value = selected;
+  }
+  async function requestVoiceList(key = '') {
+    const headers = key ? { 'xi-api-key': key } : {};
+    const response = await fetch('https://api.elevenlabs.io/v1/voices', { headers });
+    if (!response.ok) {
+      const error = new Error(`ElevenLabs svarade med fel ${response.status}.`);
+      error.status = response.status;
+      throw error;
+    }
+    const data = await response.json();
+    return Array.isArray(data.voices) ? data.voices : [];
+  }
+  function explainApiError(error) {
+    if (error.name === 'AbortError') return '';
+    if (error.status === 401) return 'Nyckeln godkändes inte. Kontrollera den och försök igen.';
+    if (error.status === 402 || error.status === 429) return 'ElevenLabs-kontots fria tecken eller anropsgräns verkar vara slut. Kontrollera kontots användning och försök igen senare.';
+    if (error.status === 403) return 'Nyckeln saknar åtkomst till AI-röster. Skapa en ny API-nyckel i ElevenLabs-inställningarna.';
+    if (error instanceof TypeError) return 'Kunde inte nå ElevenLabs. Kontrollera internetanslutningen och försök igen.';
+    return error.message || 'AI-uppläsningen misslyckades. Försök igen.';
+  }
+  function storeKeyChoice(key) {
+    try {
+      if (rememberApiKey.checked && key) localStorage.setItem(savedKeyName, key);
+      else localStorage.removeItem(savedKeyName);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  async function initializeVoiceSetup() {
+    updateVoiceOptions(fallbackVoices);
+    try { aiApiKey = localStorage.getItem(savedKeyName) || ''; } catch { aiApiKey = ''; }
+    rememberApiKey.checked = Boolean(aiApiKey);
+    if (aiApiKey) {
+      setVoiceStatus('Kontrollerar den sparade AI-nyckeln…', 'working');
+      try {
+        const available = await requestVoiceList(aiApiKey);
+        if (available.length) updateVoiceOptions(available);
+        voiceSetup.open = false;
+        connectButton.textContent = 'Uppdatera AI-röster';
+        setVoiceStatus(`AI-uppläsning redo med ${voices.length} röster. Sagan skickas direkt till ElevenLabs när du startar uppläsningen.`, 'ready');
+      } catch (error) {
+        voiceSetup.open = true;
+        setVoiceStatus(explainApiError(error), 'error');
+      }
       return;
     }
-    readButton.disabled = false;
-    swedish.forEach(voice => {
-      const label = `${voice.name}${voice.localService ? ' · enhet' : ' · online'}`;
-      voiceSelect.add(new Option(label, String(voices.indexOf(voice))));
-    });
-    const preferred = swedish.find(voice => /neural|natural|premium|enhanced/i.test(voice.name)) || swedish.find(voice => !voice.localService) || swedish.find(voice => voice.default) || swedish[0];
-    const preferredIndex = String(voices.indexOf(preferred));
-    voiceSelect.value = swedish.some(voice => String(voices.indexOf(voice)) === previousVoice) ? previousVoice : preferredIndex;
-    voiceNote.textContent = `Visar ${swedish.length} svenska röster i webbläsaren. Prova röster märkta ”online” först. På Mac och Windows kan Edge erbjuda naturligare onlineröster om de visas i listan.`;
+    try {
+      const available = await requestVoiceList();
+      if (available.length) updateVoiceOptions(available);
+    } catch {
+      // The curated AI voices stay available if the public voice list cannot load.
+    }
   }
-  if (speech) {
-    loadVoices();
-    speech.addEventListener('voiceschanged', loadVoices);
-  } else loadVoices();
+  void initializeVoiceSetup();
+
+  apiKeyForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submittedKey = apiKeyInput.value.trim() || aiApiKey;
+    if (!submittedKey) {
+      setVoiceStatus('Klistra först in din gratis API-nyckel från ElevenLabs.', 'error');
+      apiKeyInput.focus();
+      return;
+    }
+    connectButton.disabled = true;
+    connectButton.textContent = 'Ansluter…';
+    setVoiceStatus('Kontrollerar nyckeln och hämtar röster…', 'working');
+    try {
+      const available = await requestVoiceList(submittedKey);
+      if (!available.length) throw new Error('Inga AI-röster hittades på kontot.');
+      aiApiKey = submittedKey;
+      updateVoiceOptions(available);
+      const keySaved = storeKeyChoice(aiApiKey);
+      apiKeyInput.value = '';
+      voiceSetup.open = false;
+      const storageNote = rememberApiKey.checked && !keySaved ? ' Nyckeln kunde inte sparas på enheten.' : '';
+      setVoiceStatus(`Anslutet: ${voices.length} AI-röster. Välj en och tryck ”Lyssna med AI”.${storageNote}`, 'ready');
+    } catch (error) {
+      setVoiceStatus(explainApiError(error), 'error');
+    } finally {
+      connectButton.disabled = false;
+      connectButton.textContent = aiApiKey ? 'Uppdatera AI-röster' : 'Hämta AI-röster';
+    }
+  });
 
   function setPlayback(active) {
     pauseButton.disabled = !active;
-    stopButton.disabled = !active;
-    readButton.querySelector('span').textContent = active ? 'Spelar…' : 'Lyssna igen';
+    stopButton.disabled = !active && !generationBusy;
+    readButton.disabled = generationBusy;
+    readButton.querySelector('span').textContent = generationBusy ? 'Skapar AI-röst…' : 'Lyssna med AI';
   }
   function stopReading() {
+    const wasGenerating = generationBusy && Boolean(requestController);
     playbackId += 1;
-    if (speech) speech.cancel();
-    playback = null;
+    if (requestController) requestController.abort();
+    requestController = null;
+    generationBusy = false;
+    aiAudio.pause();
+    try { if (aiAudio.readyState > 0) aiAudio.currentTime = 0; } catch { /* Some browsers wait for metadata before seeking. */ }
     setPlayback(false);
     pauseButton.textContent = 'Pausa';
+    if (wasGenerating) setVoiceStatus('AI-uppläsningen stoppades.', '');
   }
-  function speakNext(id) {
-    if (!playback || playbackId !== id || playback.paused) return;
-    if (playback.index >= playback.sentences.length) {
-      playback = null;
-      setPlayback(false);
+  function clearAudioCache() {
+    stopReading();
+    if (generatedAudioUrl) URL.revokeObjectURL(generatedAudioUrl);
+    generatedAudioUrl = '';
+    generatedAudioKey = '';
+    aiAudio.removeAttribute('src');
+    aiAudio.load();
+  }
+  function currentAudioKey() {
+    if (!currentStory) return '';
+    return `${currentStory.created || currentStory.title}:${voiceSelect.value}`;
+  }
+  async function playCachedAudio() {
+    if (!generatedAudioUrl) return;
+    aiAudio.playbackRate = Number(speedControl.value);
+    if ('preservesPitch' in aiAudio) aiAudio.preservesPitch = true;
+    if ('webkitPreservesPitch' in aiAudio) aiAudio.webkitPreservesPitch = true;
+    try {
+      await aiAudio.play();
+    } catch {
+      setVoiceStatus('AI-ljudet är klart. Tryck på ”Lyssna med AI” igen för att spela upp det.', 'ready');
+    }
+  }
+  function addPerformanceCues(text) {
+    const paragraphs = text.split(/\n\s*\n/).map(paragraph => paragraph.trim()).filter(Boolean);
+    return paragraphs.map((paragraph, index) => {
+      let line = paragraph;
+      line = line.replace(/([“"])([^”"]*\?[^”"]*)([”"])/g, '[curious] $1$2$3');
+      if (/\bviskade\b/i.test(line)) line = line.replace(/([“"])([^”"]+)([”"])/, '[whispers] $1$2$3');
+      const bedtimeEnding = index === paragraphs.length - 1 || /god natt|somnade|somna|sov\b/i.test(line);
+      const cue = index === 0 ? '[warmly] ' : bedtimeEnding ? '[softly] ' : '';
+      return cue + line;
+    }).join('\n\n');
+  }
+  function apiPlaybackMessage(error) {
+    if (error.status === 401) return 'Nyckeln avvisades. Öppna inställningen och kontrollera den.';
+    if (error.status === 402 || error.status === 429) return 'ElevenLabs verkar ha nått kontots fria tecken eller anropsgräns för stunden.';
+    if (error.status === 403) return 'Kontot eller nyckeln saknar åtkomst till den här AI-rösten.';
+    if (error.status === 422) return 'AI-tjänsten kunde inte skapa ljud för texten. Prova en annan röst.';
+    return explainApiError(error);
+  }
+  readButton.addEventListener('click', async () => {
+    if (!currentStory || generationBusy) return;
+    const audioKey = currentAudioKey();
+    if (generatedAudioUrl && generatedAudioKey === audioKey) {
+      await playCachedAudio();
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(playback.sentences[playback.index]);
-    utterance.lang = 'sv-SE';
-    const voice = voices[Number(voiceSelect.value)];
-    if (voice) { utterance.voice = voice; utterance.lang = voice.lang; }
-    utterance.rate = playback.rate;
-    utterance.pitch = 1;
-    utterance.onstart = () => setPlayback(true);
-    utterance.onend = () => {
-      if (!playback || playbackId !== id) return;
-      playback.index += 1;
-      speakNext(id);
-    };
-    utterance.onerror = event => {
-      if (!playback || playbackId !== id || event.error === 'interrupted' || event.error === 'canceled') return;
-      playback = null;
-      setPlayback(false);
-      voiceNote.textContent = 'Uppläsningen kunde inte starta. Prova en annan svensk röst.';
-    };
-    speech.speak(utterance);
-  }
-  readButton.addEventListener('click', () => {
-    if (!currentStory || !speech) return;
+    if (!aiApiKey) {
+      voiceSetup.open = true;
+      setVoiceStatus('För att skapa berättarrösten behövs en gratis ElevenLabs-nyckel. Webbläsarens inbyggda röst används inte.', 'error');
+      apiKeyInput.focus();
+      return;
+    }
+    if (!voiceSelect.value) {
+      setVoiceStatus('Välj en AI-berättarröst först.', 'error');
+      return;
+    }
+    const storyForAI = addPerformanceCues(currentStory.text);
+    if (storyForAI.length > 5000) {
+      setVoiceStatus('Den här sagan är för lång för en AI-uppläsning. Välj en kortare saga.', 'error');
+      return;
+    }
     stopReading();
-    const sentences = currentStory.text.replace(/\n+/g, ' ').match(/[^.!?]+[.!?]+|[^.!?]+$/gu) || [currentStory.text];
-    playback = { sentences: sentences.map(sentence => sentence.trim()).filter(Boolean), index: 0, rate: Number(speedControl.value), paused: false };
-    playbackId += 1;
-    speakNext(playbackId);
+    const id = playbackId;
+    requestController = new AbortController();
+    generationBusy = true;
+    setPlayback(false);
+    setVoiceStatus('AI-berättaren gör rösten redo. Det kan ta en liten stund…', 'working');
+    try {
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceSelect.value)}?output_format=mp3_44100_128`, {
+        method: 'POST',
+        headers: { 'xi-api-key': aiApiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: storyForAI,
+          model_id: 'eleven_v3',
+          language_code: 'sv',
+          voice_settings: { stability: 0.38, similarity_boost: 0.82, style: 0.3, use_speaker_boost: true }
+        }),
+        signal: requestController.signal
+      });
+      if (!response.ok) {
+        let detail = '';
+        try {
+          const payload = await response.json();
+          detail = payload.detail?.message || payload.detail || '';
+        } catch { /* A plain-text API error is handled by its status code. */ }
+        const error = new Error(typeof detail === 'string' ? detail : `ElevenLabs fel ${response.status}.`);
+        error.status = response.status;
+        throw error;
+      }
+      const audioBlob = await response.blob();
+      if (id !== playbackId) return;
+      if (!audioBlob.type.startsWith('audio/')) throw new Error('ElevenLabs skickade inget ljud.');
+      if (generatedAudioUrl) URL.revokeObjectURL(generatedAudioUrl);
+      generatedAudioUrl = URL.createObjectURL(audioBlob);
+      generatedAudioKey = audioKey;
+      aiAudio.src = generatedAudioUrl;
+      aiAudio.load();
+      generationBusy = false;
+      requestController = null;
+      setPlayback(false);
+      setVoiceStatus('AI-rösten är klar. Berättartempot kan ändras medan sagan spelas.', 'ready');
+      await playCachedAudio();
+    } catch (error) {
+      if (id !== playbackId || error.name === 'AbortError') return;
+      generationBusy = false;
+      requestController = null;
+      setPlayback(false);
+      setVoiceStatus(apiPlaybackMessage(error), 'error');
+    }
   });
-  pauseButton.addEventListener('click', () => {
-    if (!speech) return;
-    if (speech.paused) { speech.resume(); if (playback) playback.paused = false; pauseButton.textContent = 'Pausa'; }
-    else { speech.pause(); if (playback) playback.paused = true; pauseButton.textContent = 'Fortsätt'; }
+  pauseButton.addEventListener('click', async () => {
+    if (aiAudio.paused) {
+      await playCachedAudio();
+      pauseButton.textContent = 'Pausa';
+    } else {
+      aiAudio.pause();
+      pauseButton.textContent = 'Fortsätt';
+    }
   });
   stopButton.addEventListener('click', stopReading);
+  aiAudio.addEventListener('play', () => {
+    setPlayback(true);
+    pauseButton.textContent = 'Pausa';
+    setVoiceStatus('AI-berättaren läser upp sagan.', 'ready');
+  });
+  aiAudio.addEventListener('pause', () => {
+    if (!generationBusy) setPlayback(false);
+  });
+  aiAudio.addEventListener('ended', () => {
+    setPlayback(false);
+    pauseButton.textContent = 'Pausa';
+    setVoiceStatus('Sagan är slut. Tryck ”Lyssna med AI” om du vill höra den igen.', 'ready');
+  });
+  voiceSelect.addEventListener('change', () => {
+    clearAudioCache();
+    if (aiApiKey) setVoiceStatus('Röst vald. Tryck ”Lyssna med AI” för att skapa uppläsningen.', 'ready');
+  });
   speedControl.addEventListener('input', () => {
     speedValue.value = `${Number(speedControl.value).toFixed(2).replace('.', ',')}×`;
     speedValue.textContent = speedValue.value;
-    if (playback) playback.rate = Number(speedControl.value);
+    aiAudio.playbackRate = Number(speedControl.value);
+    if ('preservesPitch' in aiAudio) aiAudio.preservesPitch = true;
+    if ('webkitPreservesPitch' in aiAudio) aiAudio.webkitPreservesPitch = true;
   });
 
   function getSaved() {
