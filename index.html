@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f3e9">
+  <meta name="description" content="Skapa en personlig godnattsaga på några minuter. Välj en berättarröst och lyssna direkt — helt gratis.">
+  <title>Godnatt, lilla stjärna</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="sky-glow glow-one" aria-hidden="true"></div>
+  <div class="sky-glow glow-two" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="Godnatt, lilla stjärna – startsida">
+      <span class="brand-mark" aria-hidden="true">✳</span><span>lilla <strong>stjärna</strong></span>
+    </a>
+    <nav aria-label="Huvudmeny"><a href="#skapa">Skapa en saga</a><a href="#sa-funkar-det">Så funkar det</a></nav>
+    <a class="top-cta" href="#skapa">Börja skapa <span aria-hidden="true">↗</span></a>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="eyebrow-star">✦</span> EN LITEN STUND BARA FÖR ER</div>
+        <h1>En saga som<br>börjar med <em>dig.</em></h1>
+        <p class="hero-text">Gör kvällens godnattstund till något alldeles eget. Välj en hjälte, en plats och ett litet äventyr — så berättar vi resten.</p>
+        <div class="hero-actions"><a class="button button-primary" href="#skapa">Skapa er saga <span aria-hidden="true">↓</span></a><span class="free-note"><span aria-hidden="true">✧</span> Alltid gratis · Inget konto behövs</span></div>
+        <div class="hero-proof"><div class="avatar-stack" aria-hidden="true"><span>🦊</span><span>🐻</span><span>🐰</span></div><span>Gjort för små drömmare<br><strong>och stora godnattkramar</strong></span></div>
+      </div>
+      <div class="hero-art" aria-label="En björn och en liten stjärna under en månskära">
+        <div class="art-moon"></div><span class="art-star star-a">✦</span><span class="art-star star-b">✧</span><span class="art-star star-c">·</span><span class="art-star star-d">✦</span>
+        <div class="art-cloud cloud-a"></div><div class="art-cloud cloud-b"></div>
+        <div class="art-hill hill-back"></div><div class="art-hill hill-front"></div>
+        <div class="bear"><span class="bear-ear left"></span><span class="bear-ear right"></span><span class="bear-face"><i class="eye eye-left"></i><i class="eye eye-right"></i><i class="bear-nose"></i><i class="bear-smile"></i></span><span class="bear-body"></span><span class="bear-arm"></span></div>
+        <div class="little-star">✦</div>
+        <div class="art-caption"><span class="caption-line"></span> EN SAGOSTUND ATT MINNAS</div>
+      </div>
+    </section>
+
+    <section class="create-section" id="skapa">
+      <div class="section-heading"><div><div class="eyebrow"><span class="eyebrow-star">✦</span> ER SAGOSTUND BÖRJAR HÄR</div><h2>Vad ska vi drömma om?</h2></div><span class="step-count"><span>01</span> — 02</span></div>
+      <div class="builder-grid">
+        <form class="builder-card" id="story-form">
+          <div class="form-intro"><span class="form-icon">✎</span><div><strong>Bygg en liten värld</strong><p>Det behöver bara ta en minut.</p></div></div>
+          <label class="field-label" for="child-name">Vad heter kvällens hjälte?</label>
+          <div class="input-wrap"><span aria-hidden="true">♡</span><input id="child-name" name="name" maxlength="24" placeholder="Till exempel: Ella" autocomplete="off"></div>
+          <fieldset class="choice-field"><legend>Välj en vän att ha med</legend><div class="choice-row" id="friend-choices"><button type="button" class="choice-pill selected" data-value="en nyfiken liten räv">🦊 <span>Räv</span></button><button type="button" class="choice-pill" data-value="en mjuk och modig björn">🐻 <span>Björn</span></button><button type="button" class="choice-pill" data-value="en klok liten kanin">🐰 <span>Kanin</span></button><button type="button" class="choice-pill" data-value="en vänlig drake">🐉 <span>Drake</span></button></div></fieldset>
+          <fieldset class="choice-field"><legend>Var börjar äventyret?</legend><div class="choice-row" id="place-choices"><button type="button" class="choice-pill selected" data-value="i en hemlig skog">🌲 <span>Skogen</span></button><button type="button" class="choice-pill" data-value="på en liten ö bland molnen">☁️ <span>Molnen</span></button><button type="button" class="choice-pill" data-value="på månen, där stjärnorna bor">🌙 <span>Månen</span></button><button type="button" class="choice-pill" data-value="vid ett glittrande hav">🌊 <span>Havet</span></button></div></fieldset>
+          <div class="form-bottom"><label class="duration-label" for="length">Saglängd<select id="length"><option value="kort">Kort · 2 min</option><option value="mellan" selected>Mysig · 4 min</option><option value="lang">Lång · 6 min</option></select></label><button class="button button-primary make-button" type="submit">Skapa min saga <span aria-hidden="true">✦</span></button></div>
+          <p class="privacy-note"><span aria-hidden="true">♧</span> Sagorna stannar i den här webbläsaren.</p>
+        </form>
+        <aside class="preview-card" id="sa-funkar-det">
+          <div class="preview-top"><span class="preview-tag"><span></span> EN FÖRSTA TITT</span><span class="preview-time">✧ 4 min</span></div>
+          <div class="preview-content"><div class="preview-art">🌙<span>✦</span></div><p class="preview-kicker">EN LITEN GODNATTSAGA</p><h3>Stjärnan som<br>tappade bort sig</h3><p class="preview-copy">Långt ovanför skogen bodde en liten stjärna som en kväll inte riktigt kunde hitta hem. Som tur var fanns där någon modig som kunde hjälpa till…</p></div>
+          <div class="preview-bottom"><span><span class="sound-icon">♫</span> Mjuk berättarröst</span><span>Helt gratis <span aria-hidden="true">♡</span></span></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="story-section hidden" id="story-section" aria-live="polite">
+      <div class="story-heading"><div><div class="eyebrow"><span class="eyebrow-star">✦</span> ER SAGA ÄR KLAR</div><h2 id="story-title">En saga för dig</h2></div><button class="text-button" id="new-story">← Ändra min saga</button></div>
+      <article class="story-card"><div class="story-tools"><div class="read-controls"><button class="button button-primary" id="read-button">▶ <span>Lyssna</span></button><button class="button button-soft" id="pause-button" disabled>Pausa</button><button class="button button-soft" id="stop-button" disabled>Stoppa</button></div><div class="voice-controls"><label for="voice-select">Berättarröst</label><select id="voice-select"><option value="">Laddar röster…</option></select><label class="speed-label" for="speed-select">Tempo</label><select id="speed-select"><option value="0.8">Lugnt</option><option value="0.9" selected>Mysigt</option><option value="1">Vanligt</option></select></div></div><p id="voice-note" class="voice-note"></p><div class="story-text" id="story-text"></div><div class="story-footer"><button class="button button-soft" id="save-button">♡ Spara saga</button><span id="save-status" aria-live="polite">Sparas bara på den här enheten</span></div></article>
+      <div class="saved-area hidden" id="saved-area"><h3>Mina sparade sagor</h3><div id="saved-list"></div></div>
+    </section>
+
+    <section class="how-section"><div class="eyebrow"><span class="eyebrow-star">✦</span> ENKELT SOM EN GODNATTKRAM</div><h2>Tre små steg till drömlandet.</h2><div class="how-grid"><div class="how-item"><span class="how-number">01</span><div class="how-icon">✎</div><h3>Välj er värld</h3><p>Skriv ett namn och välj en vän och en plats.</p></div><div class="how-item"><span class="how-number">02</span><div class="how-icon">✧</div><h3>Gör sagan till er</h3><p>En personlig berättelse blir klar på ett ögonblick.</p></div><div class="how-item"><span class="how-number">03</span><div class="how-icon">♫</div><h3>Lyssna och landa</h3><p>Välj en röst, kryp nära och säg godnatt.</p></div></div></section>
+  </main>
+  <footer><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">✳</span><span>lilla <strong>stjärna</strong></span></a><span>Små sagor. Stora drömmar. <span aria-hidden="true">♡</span></span><a href="#skapa">Skapa en saga ↑</a></footer>
+  <script src="app.js"></script>
+</body>
+</html>
