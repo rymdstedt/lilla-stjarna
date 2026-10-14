@@ -20,9 +20,21 @@
   const saveStatus = document.querySelector('#save-status');
   const savedArea = document.querySelector('#saved-area');
   const savedList = document.querySelector('#saved-list');
+  const guidedStoryFields = document.querySelector('#guided-story-fields');
+  const freeStoryFields = document.querySelector('#free-story-fields');
+  const guidedModeButton = document.querySelector('#guided-mode-button');
+  const freeModeButton = document.querySelector('#free-mode-button');
+  const customStoryTitle = document.querySelector('#custom-story-title');
+  const customStoryText = document.querySelector('#custom-story-text');
+  const storyCharacterCount = document.querySelector('#story-character-count');
+  const durationSetting = document.querySelector('#duration-setting');
+  const builderTitle = document.querySelector('#builder-title');
+  const builderIntro = document.querySelector('#builder-intro');
+  const submitStoryLabel = document.querySelector('#submit-story-label');
   let currentStory = null;
   let voices = [];
   let aiApiKey = '';
+  let freeTextMode = false;
   let selectedFriend = 'en nyfiken liten räv';
   let selectedPlace = 'i en hemlig skog';
   let playbackId = 0;
@@ -42,6 +54,37 @@
   }
   wireChoices('friend-choices', value => { selectedFriend = value; });
   wireChoices('place-choices', value => { selectedPlace = value; });
+
+  function normalizeStoryText(value) {
+    return (value || '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+      .split(/\n\s*\n/)
+      .map(paragraph => paragraph.split('\n').map(line => line.replace(/[\t ]+/g, ' ').trim()).join(' ').trim())
+      .filter(Boolean)
+      .join('\n\n');
+  }
+  function updateCustomStoryCount() {
+    storyCharacterCount.textContent = `${customStoryText.value.length.toLocaleString('sv-SE')} / 5 000 tecken`;
+    customStoryText.setCustomValidity(freeTextMode && !normalizeStoryText(customStoryText.value)
+      ? 'Skriv eller klistra in sagans text.' : '');
+  }
+  function setStoryMode(useFreeText) {
+    freeTextMode = useFreeText;
+    guidedStoryFields.classList.toggle('hidden', useFreeText);
+    freeStoryFields.classList.toggle('hidden', !useFreeText);
+    durationSetting.classList.toggle('hidden', useFreeText);
+    guidedModeButton.classList.toggle('selected', !useFreeText);
+    guidedModeButton.setAttribute('aria-pressed', String(!useFreeText));
+    freeModeButton.classList.toggle('selected', useFreeText);
+    freeModeButton.setAttribute('aria-pressed', String(useFreeText));
+    customStoryText.required = useFreeText;
+    builderTitle.textContent = useFreeText ? 'Skriv er egen saga' : 'Bygg en liten värld';
+    builderIntro.textContent = useFreeText ? 'Klistra in eller skriv precis som ni vill.' : 'Det behöver bara ta en minut.';
+    submitStoryLabel.textContent = useFreeText ? 'Visa min saga' : 'Skapa min saga';
+    updateCustomStoryCount();
+  }
+  guidedModeButton.addEventListener('click', () => setStoryMode(false));
+  freeModeButton.addEventListener('click', () => setStoryMode(true));
+  customStoryText.addEventListener('input', updateCustomStoryCount);
 
   const stories = {
     kort: [
@@ -70,7 +113,7 @@
     clearAudioCache();
     currentStory = story;
     storyTitle.textContent = story.title;
-    storyText.replaceChildren(...story.text.split('\n\n').map(paragraph => {
+    storyText.replaceChildren(...story.text.split(/\n\s*\n/).map(paragraph => {
       const p = document.createElement('p'); p.textContent = paragraph; return p;
     }));
     storySection.classList.remove('hidden');
@@ -81,6 +124,21 @@
   form.addEventListener('submit', event => {
     event.preventDefault();
     stopReading();
+    if (freeTextMode) {
+      const text = normalizeStoryText(customStoryText.value);
+      if (!text) {
+        customStoryText.setCustomValidity('Skriv eller klistra in sagans text.');
+        customStoryText.reportValidity();
+        return;
+      }
+      showStory({
+        title: cleanText(customStoryTitle.value, 80, 'Min egen saga'),
+        text,
+        created: Date.now(),
+        freeText: true
+      });
+      return;
+    }
     const customFriend = cleanText(document.querySelector('#custom-friend').value, 50);
     const customPlace = cleanText(document.querySelector('#custom-place').value, 60);
     const friend = customFriend ? /^(en|ett)\s/i.test(customFriend) ? customFriend : `en ${customFriend}` : selectedFriend;

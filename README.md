@@ -2,6 +2,8 @@
 
 En svensk, responsiv sagosida som kan publiceras gratis med GitHub Pages. Sagorna skapas i webbläsaren och sparas lokalt på enheten. AI-uppläsningen görs av ElevenLabs Eleven v3, med känslomarkeringar och val mellan tillgängliga röster.
 
+Besökaren kan antingen skapa en saga med namn, djur och plats eller klistra in en egen färdig saga som fritext. Den egna texten kan få en valfri titel och sparas lokalt på samma sätt som en skapad saga. AI-uppläsningen stöder upp till 5 000 tecken per saga.
+
 ## AI-uppläsning
 
 GitHub Pages är statiskt och kan inte skydda en gemensam API-nyckel. Därför behöver varje användare ansluta sin egen ElevenLabs-nyckel i berättarvyn. ElevenLabs har för närvarande en gratisnivå med 10 000 text-till-tal-tecken per månad; kontrollera deras [aktuella planer](https://elevenlabs.io/pricing), eftersom villkoren kan ändras.

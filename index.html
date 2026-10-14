@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=mobile-20261014">
+  <link rel="stylesheet" href="styles.css?v=free-text-20261014">
 </head>
 <body>
   <div class="sky-glow glow-one" aria-hidden="true"></div>
@@ -45,12 +45,25 @@
       <div class="section-heading"><div><div class="eyebrow"><span class="eyebrow-star">✦</span> ER SAGOSTUND BÖRJAR HÄR</div><h2>Vad ska vi drömma om?</h2></div><span class="step-count"><span>01</span> — 02</span></div>
       <div class="builder-grid">
         <form class="builder-card" id="story-form">
-          <div class="form-intro"><span class="form-icon">✎</span><div><strong>Bygg en liten värld</strong><p>Det behöver bara ta en minut.</p></div></div>
+          <div class="form-intro"><span class="form-icon">✎</span><div><strong id="builder-title">Bygg en liten värld</strong><p id="builder-intro">Det behöver bara ta en minut.</p></div></div>
+          <div class="story-mode-switch" role="group" aria-label="Välj hur du vill göra sagan">
+            <button class="story-mode-button selected" id="guided-mode-button" type="button" aria-pressed="true">Skapa med val</button>
+            <button class="story-mode-button" id="free-mode-button" type="button" aria-pressed="false">Klistra in egen text</button>
+          </div>
+          <div id="guided-story-fields">
           <label class="field-label" for="child-name">Vad heter kvällens hjälte?</label>
           <div class="input-wrap"><span aria-hidden="true">♡</span><input id="child-name" name="name" maxlength="24" placeholder="Till exempel: Ella" autocomplete="off"></div>
           <fieldset class="choice-field"><legend>Välj en vän att ha med</legend><div class="choice-row" id="friend-choices"><button type="button" class="choice-pill selected" data-value="en nyfiken liten räv">🦊 <span>Räv</span></button><button type="button" class="choice-pill" data-value="en mjuk och modig björn">🐻 <span>Björn</span></button><button type="button" class="choice-pill" data-value="en klok liten kanin">🐰 <span>Kanin</span></button><button type="button" class="choice-pill" data-value="en vänlig drake">🐉 <span>Drake</span></button><button type="button" class="choice-pill" data-value="en busig liten utter">🦦 <span>Utter</span></button><button type="button" class="choice-pill" data-value="en snäll dinosaurie">🦕 <span>Dinosaurie</span></button><button type="button" class="choice-pill" data-value="en randig tigerunge">🐯 <span>Tiger</span></button><button type="button" class="choice-pill" data-value="en klok gammal sköldpadda">🐢 <span>Sköldpadda</span></button></div><label class="custom-label" for="custom-friend">Eller hitta på en egen vän</label><input class="custom-input" id="custom-friend" maxlength="50" placeholder="Till exempel: en talande igelkott"><p class="field-hint">Skriv gärna hela frasen, med en eller ett.</p></fieldset>
           <fieldset class="choice-field"><legend>Var börjar äventyret?</legend><div class="choice-row" id="place-choices"><button type="button" class="choice-pill selected" data-value="i en hemlig skog">🌲 <span>Skogen</span></button><button type="button" class="choice-pill" data-value="på en liten ö bland molnen">☁️ <span>Molnen</span></button><button type="button" class="choice-pill" data-value="på månen, där stjärnorna bor">🌙 <span>Månen</span></button><button type="button" class="choice-pill" data-value="vid ett glittrande hav">🌊 <span>Havet</span></button><button type="button" class="choice-pill" data-value="i ett undervattensslott">🐚 <span>Slottet</span></button><button type="button" class="choice-pill" data-value="på en blommande äng">🌼 <span>Ängen</span></button><button type="button" class="choice-pill" data-value="på en snötäckt bergstopp">🏔️ <span>Bergen</span></button><button type="button" class="choice-pill" data-value="i ett tyst bibliotek fullt av hemliga dörrar">📚 <span>Biblioteket</span></button></div><label class="custom-label" for="custom-place">Eller välj en egen plats</label><input class="custom-input" id="custom-place" maxlength="60" placeholder="Till exempel: på ett slott under havet"><p class="field-hint">Skriv platsen så som den ska stå i sagan: ”på”, ”i”, ”vid”…</p></fieldset>
-          <div class="form-bottom"><label class="duration-label" for="length">Saglängd<select id="length"><option value="kort">Kort · 2 min</option><option value="mellan" selected>Mysig · 4 min</option><option value="lang">Lång · 6 min</option></select></label><button class="button button-primary make-button" type="submit">Skapa min saga <span aria-hidden="true">✦</span></button></div>
+          </div>
+          <div class="free-story-fields hidden" id="free-story-fields">
+            <label class="custom-label" for="custom-story-title">Titel <span>(valfritt)</span></label>
+            <input class="custom-input" id="custom-story-title" maxlength="80" placeholder="Till exempel: Maja och månkaninen">
+            <div class="free-story-label-row"><label class="custom-label" for="custom-story-text">Klistra in eller skriv hela sagan</label><output id="story-character-count" for="custom-story-text">0 / 5 000 tecken</output></div>
+            <textarea id="custom-story-text" maxlength="5000" rows="10" placeholder="Skriv eller klistra in er saga här …"></textarea>
+            <p class="field-hint">AI-uppläsning stöder upp till 5 000 tecken per saga. Lägg gärna en tom rad mellan styckena.</p>
+          </div>
+          <div class="form-bottom"><label class="duration-label" id="duration-setting" for="length">Saglängd<select id="length"><option value="kort">Kort · 2 min</option><option value="mellan" selected>Mysig · 4 min</option><option value="lang">Lång · 6 min</option></select></label><button class="button button-primary make-button" type="submit"><span id="submit-story-label">Skapa min saga</span><span aria-hidden="true">✦</span></button></div>
           <p class="privacy-note"><span aria-hidden="true">♧</span> Sagorna stannar i den här webbläsaren.</p>
         </form>
         <aside class="preview-card" id="sa-funkar-det">
@@ -92,6 +105,6 @@
     <section class="how-section"><div class="eyebrow"><span class="eyebrow-star">✦</span> ENKELT SOM EN GODNATTKRAM</div><h2>Tre små steg till drömlandet.</h2><div class="how-grid"><div class="how-item"><span class="how-number">01</span><div class="how-icon">✎</div><h3>Välj er värld</h3><p>Skriv ett namn och välj en vän och en plats.</p></div><div class="how-item"><span class="how-number">02</span><div class="how-icon">✧</div><h3>Gör sagan till er</h3><p>En personlig berättelse blir klar på ett ögonblick.</p></div><div class="how-item"><span class="how-number">03</span><div class="how-icon">♫</div><h3>Lyssna och landa</h3><p>Välj en AI-röst, ställ tempot och kryp nära.</p></div></div></section>
   </main>
   <footer><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">✳</span><span>lilla <strong>stjärna</strong></span></a><span>Små sagor. Stora drömmar. <span aria-hidden="true">♡</span></span><a href="https://elevenlabs.io" target="_blank" rel="noopener noreferrer">AI-röster via ElevenLabs ↗</a></footer>
-  <script src="app.js"></script>
+  <script src="app.js?v=free-text-20261014"></script>
 </body>
 </html>
